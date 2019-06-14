@@ -27,11 +27,11 @@ def predict():
         print('POST', '::'*50)
         if request.form['submit_button'] == "Generate":
             print('HERE' + '#' * 60)
-            dish1 = predictor_api.main()
-            dish2 = predictor_api.main()
-            dish3 = predictor_api.main()
-            dish4 = predictor_api.main()
-            dish5 = predictor_api.main()
+            dish1 = predictor_api.main(temp = 0.15)
+            dish2 = predictor_api.main(temp = 0.3)
+            dish3 = predictor_api.main(temp = 0.45)
+            dish4 = predictor_api.main(temp = 0.6)
+            dish5 = predictor_api.main(temp = 0.75)
     else:
         dish1 = None
         dish2 = None

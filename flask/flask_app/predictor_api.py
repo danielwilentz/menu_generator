@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import os
+import random
 
 # LSTM imports:
 import tensorflow as tf
@@ -29,7 +30,7 @@ from keras.utils import np_utils
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
-# open seeds, chars, and char_to_int dictionary:
+# open seeds, chars, char_to_int dictionary, and unique words:
 pattern_path = os.path.join(APP_ROOT, 'pickles', 'patterns.pkl')
 with open(pattern_path, 'rb') as f:
     seeds = pickle.load(f)
@@ -42,10 +43,14 @@ char_int_path = os.path.join(APP_ROOT, 'pickles', 'char_to_int.pkl')
 with open(char_int_path, 'rb') as f:
     chars_to_int = pickle.load(f)
 
-import reprlib
-print('SEED:', reprlib.repr(seeds))
-print('CHARS:', reprlib.repr(chars))
-print('CHAR2INT:', reprlib.repr(chars_to_int))
+unique_words_path = os.path.join(APP_ROOT, 'pickles', 'unique_words.pkl')
+with open(unique_words_path, 'rb') as f:
+    unique_words = pickle.load(f)
+
+# import reprlib
+# print('SEED:', reprlib.repr(seeds))
+# print('CHARS:', reprlib.repr(chars))
+# print('CHAR2INT:', reprlib.repr(chars_to_int))
 
 
 # define and load model:
@@ -75,10 +80,63 @@ def sample(preds, temperature=1.0):
     np.seterr(divide = 'ignore') 
     return np.argmax(probas)
 
+def clean_output(raw_dish, avail_words):
+    """
+    function to clean the output of my LSTM
+    """  
+    
+    bad_words = ['the', 'potat', 'nd', 'ad', 'comments', 'look', 'potatoe', 'read', 'er', 'us', 'review']
+    filler_words = ['and', 'of', 'with', 'or', 'a', 'choice', 'of', 'served', 'on', 'cooked', 'in', 'from']
+    
+    word_list = raw_dish.strip().split(' ')[1:]
+    cleaned_dish_list = []
+    
+    # Exclude any words not in the original corpus and in the "bad words list"
+    # EXCEPT, I allow one typo to make things more interesting
+    typos = 0
+    for word in word_list:
+        if word in avail_words and word not in bad_words:
+            cleaned_dish_list.append(word)
+        elif word not in avail_words:
+            if typos < 1:
+                cleaned_dish_list.append(word)
+            typos += 1
+    
+    # Limit to only one and/one or/one sauce:
+    num_and, num_or, num_sauce, num_potato, num_cheese = 0, 0, 0, 0, 0
+    sauce_lim = random.randint(1,2)
+    potato_lim = random.randint(1,2)
+    cheese_lim = random.randint(1,2)
+    
+    for i, word in enumerate(cleaned_dish_list):
+        if word == 'and':
+            num_and += 1
+        elif word == 'or':
+            num_or += 1
+        elif word == 'sauce':
+            num_sauce += 1
+        elif word == 'potato' or word == 'potatoes':
+            num_potato += 1
+        elif word == 'cheese':
+            num_cheese += 1
+        if num_and > 1 or num_or > 1 or num_sauce > sauce_lim or \
+            num_potato > potato_lim or num_cheese > cheese_lim:
+            cleaned_dish_list = cleaned_dish_list[:i]
+    
+    # Make sure the dish doesn't end with filler words
+    while cleaned_dish_list[-1] in filler_words or len(cleaned_dish_list[-1]) <= 2:
+        cleaned_dish_list = cleaned_dish_list[:-1]
+    
+    # Make sure the dish doesn't start with filler words
+    while cleaned_dish_list[0] in filler_words:
+        cleaned_dish_list = cleaned_dish_list[1:]
+        
+    return ' '.join(cleaned_dish_list)
+
 
 # define function to generate text
 def generate_dish(seeds, lstm_model, temp, seq_len, n_vocab, output_len,
-                 char_to_int_dict, chars):
+                 char_to_int_dict, chars, avail_words):
   """
   Generate a dish based on a series of seeds and an LSTM model
   
@@ -100,7 +158,7 @@ def generate_dish(seeds, lstm_model, temp, seq_len, n_vocab, output_len,
   # initialize dish as empty list
   dish = []
   seed = orig_seed
-  print(seed)
+#   print(seed)
   
   # generate characters one by one
   for w in range(output_len):
@@ -119,12 +177,14 @@ def generate_dish(seeds, lstm_model, temp, seq_len, n_vocab, output_len,
       dish.append(next_char)
 
   dish_gen = "".join(dish)
-  return dish_gen
+  clean_dish_gen = clean_output(dish_gen, avail_words)
+  return clean_dish_gen
 
 
-def main():
-  result = generate_dish(seeds=seeds, lstm_model=model, temp=0.25, seq_len=seq_len, 
-                         n_vocab=n_vocab, output_len=100, char_to_int_dict=chars_to_int, chars=chars)
+def main(temp):
+  result = generate_dish(seeds=seeds, lstm_model=model, temp=temp, seq_len=seq_len, 
+                         n_vocab=n_vocab, output_len=100, char_to_int_dict=chars_to_int, 
+                         chars=chars, avail_words=unique_words)
   return result
 
 
@@ -135,4 +195,4 @@ def main():
 # when running this file; it doesn't run when importing
 if __name__ == '__main__':
     print('hello world')
-    print(main())
+    print(main(temp=0.25))
